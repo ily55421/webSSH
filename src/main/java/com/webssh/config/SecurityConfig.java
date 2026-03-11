@@ -26,7 +26,10 @@ import javax.servlet.http.HttpServletRequest;
  */
 @Configuration
 public class SecurityConfig {
-
+    // 设置 Remember-Me 的有效期为 1 年 (秒)
+    private static final int REMEMBER_ME_VALIDITY_SECONDS = 31536000;
+    // 自定义 Key，用于签名 Cookie，增强安全性 (生产环境建议改为复杂随机字符串)
+    private static final String REMEMBER_ME_KEY = "web-ssh-remember-me-key-secret";
     /**
      * 配置 HTTP 安全过滤链。
      * <p>
@@ -52,7 +55,7 @@ public class SecurityConfig {
                                 return request.getRequestURI().contains("/login")
                                         || request.getRequestURI().contains("/login.html")
                                         || request.getRequestURI().contains("/login.css")
-                                        || request.getRequestURI().contains("/i18n.j");
+                                        || request.getRequestURI().contains("/i18n.js");
 
                             }
                         }).permitAll()
@@ -68,7 +71,19 @@ public class SecurityConfig {
                 .logout(logout -> logout
                         .logoutSuccessUrl("/login?logout")
                         .permitAll()
+                )// 【新增】配置 Remember-Me (自动登录)
+                .rememberMe(remember -> remember
+                        // 设置有效期为 1 年 (单位：秒)
+                        .tokenValiditySeconds(REMEMBER_ME_VALIDITY_SECONDS)
+                        // 设置 Key 用于加密 Cookie，防止篡改
+                        .key(REMEMBER_ME_KEY)
+                        // 如果希望用户必须勾选"记住我"才生效，保持默认 false
+                        // 如果希望无需勾选始终记住，设置为 true
+                        .alwaysRemember(true)
+                        // 可选：自定义 Cookie 名称
+                        .rememberMeParameter("remember-me")
                 );
+
 
         return http.build();
     }
