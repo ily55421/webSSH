@@ -10,6 +10,9 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.util.matcher.RequestMatcher;
+
+import javax.servlet.http.HttpServletRequest;
 
 /**
  * Spring Security 安全配置类。
@@ -43,7 +46,16 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 // 登录页及静态资源放行，其余请求需认证
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/login", "/login.html", "/login.css", "/i18n.js").permitAll()
+                        .requestMatchers(new RequestMatcher() {
+                            @Override
+                            public boolean matches(HttpServletRequest request) {
+                                return request.getRequestURI().contains("/login")
+                                        || request.getRequestURI().contains("/login.html")
+                                        || request.getRequestURI().contains("/login.css")
+                                        || request.getRequestURI().contains("/i18n.j");
+
+                            }
+                        }).permitAll()
                         .anyRequest().authenticated()
                 )
                 // 使用自定义登录页，登录成功后重定向到首页

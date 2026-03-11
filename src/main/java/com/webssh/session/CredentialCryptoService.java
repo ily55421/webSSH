@@ -45,7 +45,7 @@ public class CredentialCryptoService {
      */
     public CredentialCryptoService(CredentialCryptoProperties properties) {
         String masterKey = properties.getMasterKey();
-        if (masterKey == null || masterKey.isBlank()) {
+        if (masterKey == null || masterKey.trim().isEmpty()) {
             throw new IllegalStateException("webssh.crypto.master-key 不能为空");
         }
         // 使用 SHA-256 将 master-key 固定为 32 字节，满足 AES-256 密钥长度要求
@@ -94,7 +94,7 @@ public class CredentialCryptoService {
      * @return 解密后的明文；若输入为空或格式非法则返回 null 或抛出异常
      */
     public String decrypt(String cipherText) {
-        if (cipherText == null || cipherText.isBlank()) {
+        if (cipherText == null || cipherText.trim().isEmpty()) {
             return null;
         }
         try {

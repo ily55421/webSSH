@@ -5,6 +5,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -30,8 +31,10 @@ public class ApiExceptionHandler {
      */
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<Map<String, String>> handleIllegalArgument(IllegalArgumentException e) {
+        HashMap<String, String> map = new HashMap<>();
+        map.put("message", e.getMessage());
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(Map.of("message", e.getMessage()));
+                .body(map);
     }
 
     /**
@@ -46,7 +49,9 @@ public class ApiExceptionHandler {
      */
     @ExceptionHandler(IllegalStateException.class)
     public ResponseEntity<Map<String, String>> handleIllegalState(IllegalStateException e) {
+        HashMap<String, String> map = new HashMap<>();
+        map.put("message", e.getMessage());
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(Map.of("message", e.getMessage()));
+                .body(map);
     }
 }

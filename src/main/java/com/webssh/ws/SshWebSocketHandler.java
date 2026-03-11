@@ -12,7 +12,7 @@ import com.jcraft.jsch.JSch;
 import com.jcraft.jsch.Session;
 import com.jcraft.jsch.SftpATTRS;
 import com.jcraft.jsch.SftpException;
-import jakarta.annotation.PreDestroy;
+import javax.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -132,7 +132,7 @@ public class SshWebSocketHandler extends TextWebSocketHandler {
      * <li>立即执行一次 {@code __w} 获取初始目录</li>
      * </ol>
      */
-    private static final List<String> SHELL_CWD_INIT_COMMANDS = List.of(
+    private static final List<String> SHELL_CWD_INIT_COMMANDS = Arrays.asList(
             "__w(){ printf '\\002__WEBSSH_CWD__:%s\\003' \"$PWD\"; }",
             "[ \"$ZSH_VERSION\" ] && eval 'precmd_functions+=(__w)'",
             "[ \"$BASH_VERSION\" ] && eval 'PROMPT_COMMAND=\"__w${PROMPT_COMMAND:+;$PROMPT_COMMAND}\"'",
@@ -167,21 +167,81 @@ public class SshWebSocketHandler extends TextWebSocketHandler {
      * SSH 会话连接配置，封装一次 SSH 连接所需的全部参数。
      * 同时也用于 SFTP 操作时建立独立的 SSH 会话（避免与 Shell 通道共用会话导致阻塞）。
      */
-    private record SshSessionConfig(
-            String host,
-            int port,
-            String username,
-            String authType,
-            String password,
-            String privateKey,
-            String passphrase,
-            String expectedFingerprint) {
+    private static final class SshSessionConfig {
+        private final String host;
+        private final int port;
+        private final String username;
+        private final String authType;
+        private final String password;
+        private final String privateKey;
+        private final String passphrase;
+        private final String expectedFingerprint;
+
+        private SshSessionConfig(String host, int port, String username, String authType,
+                               String password, String privateKey, String passphrase,
+                               String expectedFingerprint) {
+            this.host = host;
+            this.port = port;
+            this.username = username;
+            this.authType = authType;
+            this.password = password;
+            this.privateKey = privateKey;
+            this.passphrase = passphrase;
+            this.expectedFingerprint = expectedFingerprint;
+        }
+
+        public String host() {
+            return host;
+        }
+
+        public int port() {
+            return port;
+        }
+
+        public String username() {
+            return username;
+        }
+
+        public String authType() {
+            return authType;
+        }
+
+        public String password() {
+            return password;
+        }
+
+        public String privateKey() {
+            return privateKey;
+        }
+
+        public String passphrase() {
+            return passphrase;
+        }
+
+        public String expectedFingerprint() {
+            return expectedFingerprint;
+        }
     }
 
     /**
      * 已认证的 SSH 会话及其主机指纹，由 {@link #openAuthenticatedSession} 返回。
      */
-    private record OpenedSession(Session session, String fingerprint) {
+    private static final class OpenedSession {
+        private final Session session;
+        private final String fingerprint;
+
+        private OpenedSession(Session session, String fingerprint) {
+            this.session = session;
+            this.fingerprint = fingerprint;
+        }
+
+        public Session session() {
+            return session;
+        }
+
+        public String fingerprint() {
+            return fingerprint;
+        }
     }
 
     /**
@@ -191,7 +251,17 @@ public class SshWebSocketHandler extends TextWebSocketHandler {
      * 当 {@code ownsSession} 为 true 时，关闭时同时断开 SSH 会话；
      * 为 false 时仅关闭 SFTP 通道（复用 Shell 会话的场景）。
      */
-    private record SftpClient(Session session, ChannelSftp channel, boolean ownsSession) implements AutoCloseable {
+    private static final class SftpClient implements AutoCloseable {
+        private final Session session;
+        private final ChannelSftp channel;
+        private final boolean ownsSession;
+
+        private SftpClient(Session session, ChannelSftp channel, boolean ownsSession) {
+            this.session = session;
+            this.channel = channel;
+            this.ownsSession = ownsSession;
+        }
+
         @Override
         public void close() {
             try {
@@ -206,6 +276,14 @@ public class SshWebSocketHandler extends TextWebSocketHandler {
                     // 忽略关闭异常
                 }
             }
+        }
+
+        public Session session() {
+            return session;
+        }
+
+        public ChannelSftp channel() {
+            return channel;
         }
     }
 
@@ -315,23 +393,51 @@ public class SshWebSocketHandler extends TextWebSocketHandler {
 
         try {
             switch (type) {
-                case "connect" -> handleConnect(connection, payload);
-                case "input" -> handleInput(connection, payload);
-                case "resize" -> handleResize(connection, payload);
-                case "disconnect" -> handleDisconnect(connection);
+                case "connect":
+                    handleConnect(connection, payload);
+                    break;
+                case "input":
+                    handleInput(connection, payload);
+                    break;
+                case "resize":
+                    handleResize(connection, payload);
+                    break;
+                case "disconnect":
+                    handleDisconnect(connection);
+                    break;
                 // SFTP 操作提交到 IO 线程池异步执行，避免阻塞 WebSocket 消息处理线程
-                case "sftp_list" -> submitIoTask(connection, "SFTP 列表", () -> handleSftpList(connection, payload));
-                case "sftp_download" ->
+                case "sftp_list":
+                    submitIoTask(connection, "SFTP 列表", () -> handleSftpList(connection, payload));
+                    break;
+                case "sftp_download":
                     submitIoTask(connection, "SFTP 下载", () -> handleSftpDownload(connection, payload));
-                case "sftp_download_ack" -> handleSftpDownloadAck(connection, payload);
-                case "sftp_upload_start" -> handleSftpUploadStart(connection, payload);
-                case "sftp_upload_chunk" -> handleSftpUploadChunk(connection, payload);
-                case "sftp_upload" -> submitIoTask(connection, "SFTP 上传", () -> handleSftpUpload(connection, payload));
-                case "sftp_mkdir" -> submitIoTask(connection, "SFTP 创建目录", () -> handleSftpMkdir(connection, payload));
-                case "port_forward_add" -> handlePortForwardAdd(connection, payload);
-                case "port_forward_remove" -> handlePortForwardRemove(connection, payload);
-                case "port_forward_list" -> handlePortForwardList(connection);
-                default -> sendError(session, "不支持的消息类型: " + type);
+                    break;
+                case "sftp_download_ack":
+                    handleSftpDownloadAck(connection, payload);
+                    break;
+                case "sftp_upload_start":
+                    handleSftpUploadStart(connection, payload);
+                    break;
+                case "sftp_upload_chunk":
+                    handleSftpUploadChunk(connection, payload);
+                    break;
+                case "sftp_upload":
+                    submitIoTask(connection, "SFTP 上传", () -> handleSftpUpload(connection, payload));
+                    break;
+                case "sftp_mkdir":
+                    submitIoTask(connection, "SFTP 创建目录", () -> handleSftpMkdir(connection, payload));
+                    break;
+                case "port_forward_add":
+                    handlePortForwardAdd(connection, payload);
+                    break;
+                case "port_forward_remove":
+                    handlePortForwardRemove(connection, payload);
+                    break;
+                case "port_forward_list":
+                    handlePortForwardList(connection);
+                    break;
+                default:
+                    sendError(session, "不支持的消息类型: " + type);
             }
         } catch (Exception e) {
             log.warn("处理消息失败 type={}: {}", type, safeMessage(e), e);
@@ -617,9 +723,10 @@ public class SshWebSocketHandler extends TextWebSocketHandler {
                 java.util.Vector items = sftp.ls(resolvedPath);
                 ArrayNode entries = objectMapper.createArrayNode();
                 for (Object item : items) {
-                    if (!(item instanceof ChannelSftp.LsEntry entry)) {
+                    if (!(item instanceof ChannelSftp.LsEntry)) {
                         continue;
                     }
+                    ChannelSftp.LsEntry entry = (ChannelSftp.LsEntry) item;
                     String name = entry.getFilename();
                     if (".".equals(name) || "..".equals(name)) {
                         continue;
@@ -1297,7 +1404,7 @@ public class SshWebSocketHandler extends TextWebSocketHandler {
 
     /** 检查字符串是否非 null 且非空白 */
     private boolean hasText(String value) {
-        return value != null && !value.isBlank();
+        return value != null && !value.trim().isEmpty();
     }
 
     // --- SSH 算法和指纹工具方法 ---
@@ -1369,7 +1476,7 @@ public class SshWebSocketHandler extends TextWebSocketHandler {
 
     /** 安全获取异常消息，如果消息为空则返回异常类名 */
     private String safeMessage(Throwable e) {
-        if (e.getMessage() == null || e.getMessage().isBlank()) {
+        if (e.getMessage() == null || e.getMessage().trim().isEmpty()) {
             return e.getClass().getSimpleName();
         }
         return e.getMessage();
@@ -1848,7 +1955,7 @@ public class SshWebSocketHandler extends TextWebSocketHandler {
         private void armShellCwdSync() {
             // 只过滤 stty -echo 的回显；init 命令在 echo 关闭后发送不会被回显
             // 无 stty 环境中 init 命令回显会短暂显示（降级体验，可接受）
-            shellOutputFilter.armInitialization(List.of("{ stty -echo; } 2>/dev/null"));
+            shellOutputFilter.armInitialization(Arrays.asList("{ stty -echo; } 2>/dev/null"));
         }
 
         private ShellOutputChunk filterShellOutput(byte[] data, int len) {
@@ -2002,7 +2109,7 @@ public class SshWebSocketHandler extends TextWebSocketHandler {
      * @see ShellOutputFilter#consume(byte[], int)
      */
     private static final class ShellOutputChunk {
-        private static final ShellOutputChunk EMPTY = new ShellOutputChunk(new byte[0], List.of());
+        private static final ShellOutputChunk EMPTY = new ShellOutputChunk(new byte[0], new ArrayList<String>());
 
         private final byte[] visibleBytes;
         private final List<String> cwdPaths;
@@ -2061,7 +2168,7 @@ public class SshWebSocketHandler extends TextWebSocketHandler {
                 byte[] overflow = buffer.toByteArray();
                 buffer.reset();
                 pendingInitEchoLines.clear();
-                return new ShellOutputChunk(overflow, List.of());
+                return new ShellOutputChunk(overflow, new ArrayList<String>());
             }
 
             byte[] current = buffer.toByteArray();
@@ -2316,18 +2423,48 @@ public class SshWebSocketHandler extends TextWebSocketHandler {
      * <p>
      * 使用 "direction|bindHost|bindPort" 作为唯一键，支持同一绑定端口的规则替换。
      */
-    private record PortForwardRule(
-            String direction,
-            String bindHost,
-            int bindPort,
-            String targetHost,
-            int targetPort) {
+    private static final class PortForwardRule {
+        private final String direction;
+        private final String bindHost;
+        private final int bindPort;
+        private final String targetHost;
+        private final int targetPort;
+
+        private PortForwardRule(String direction, String bindHost, int bindPort,
+                             String targetHost, int targetPort) {
+            this.direction = direction;
+            this.bindHost = bindHost;
+            this.bindPort = bindPort;
+            this.targetHost = targetHost;
+            this.targetPort = targetPort;
+        }
+
         private String key() {
             return keyOf(direction, bindHost, bindPort);
         }
 
         private static String keyOf(String direction, String bindHost, int bindPort) {
             return direction + "|" + bindHost + "|" + bindPort;
+        }
+
+        public String direction() {
+            return direction;
+        }
+
+        public String bindHost() {
+            return bindHost;
+        }
+
+        public int bindPort() {
+            return bindPort;
+        }
+
+        public String targetHost() {
+            return targetHost;
+        }
+
+        public int targetPort() {
+            return targetPort;
         }
     }
 }

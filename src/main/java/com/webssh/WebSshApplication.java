@@ -12,9 +12,6 @@ import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
  * {@code @ConfigurationProperties} 的配置类（如 {@code WebSshAuthProperties}、
  * {@code SshCompatibilityProperties}），使得 application.yml 中的自定义配置能够绑定到 Java 对象。
  * </p>
- *
- * @see org.springframework.boot.autoconfigure.SpringBootApplication
- * @see org.springframework.boot.context.properties.ConfigurationPropertiesScan
  */
 @SpringBootApplication
 @ConfigurationPropertiesScan

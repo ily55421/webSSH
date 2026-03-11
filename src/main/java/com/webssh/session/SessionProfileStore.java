@@ -30,7 +30,7 @@ public class SessionProfileStore {
 
     /** Jackson 反序列化 JSON 为 Profile 列表的类型引用 */
     private static final TypeReference<List<StoredSshSessionProfile>> PROFILE_LIST =
-            new TypeReference<>() {};
+            new TypeReference<List<StoredSshSessionProfile>>() {};
 
     private final ObjectMapper objectMapper;
     private final Path rootDir;
@@ -78,7 +78,7 @@ public class SessionProfileStore {
      * @return 会话详情，含解密后的 password/privateKey/passphrase；不存在则返回 null
      */
     public SshSessionProfile get(String username, String id) {
-        if (id == null || id.isBlank()) {
+        if (id == null || id.trim().isEmpty()) {
             return null;
         }
         synchronized (lockFor(username)) {
@@ -122,7 +122,7 @@ public class SessionProfileStore {
      * @return 是否成功删除
      */
     public boolean delete(String username, String id) {
-        if (id == null || id.isBlank()) {
+        if (id == null || id.trim().isEmpty()) {
             return false;
         }
         synchronized (lockFor(username)) {
@@ -382,7 +382,7 @@ public class SessionProfileStore {
 
     /** 判断字符串是否为空或仅空白 */
     private boolean isBlank(String value) {
-        return value == null || value.isBlank();
+        return value == null || value.trim().isEmpty();
     }
 
     /**
@@ -403,17 +403,77 @@ public class SessionProfileStore {
      * 规范化后的请求记录，用于在校验通过后传递到 toStored。
      * 使用 record 保证不可变，避免后续逻辑误改。
      */
-    private record NormalizedRequest(
-            String id,
-            String name,
-            String host,
-            int port,
-            String username,
-            String authType,
-            String hostFingerprint,
-            boolean saveCredentials,
-            String password,
-            String privateKey,
-            String passphrase
-    ) {}
+    private static final class NormalizedRequest {
+        private final String id;
+        private final String name;
+        private final String host;
+        private final int port;
+        private final String username;
+        private final String authType;
+        private final String hostFingerprint;
+        private final boolean saveCredentials;
+        private final String password;
+        private final String privateKey;
+        private final String passphrase;
+
+        private NormalizedRequest(String id, String name, String host, int port, String username,
+                             String authType, String hostFingerprint, boolean saveCredentials,
+                             String password, String privateKey, String passphrase) {
+            this.id = id;
+            this.name = name;
+            this.host = host;
+            this.port = port;
+            this.username = username;
+            this.authType = authType;
+            this.hostFingerprint = hostFingerprint;
+            this.saveCredentials = saveCredentials;
+            this.password = password;
+            this.privateKey = privateKey;
+            this.passphrase = passphrase;
+        }
+
+        public String id() {
+            return id;
+        }
+
+        public String name() {
+            return name;
+        }
+
+        public String host() {
+            return host;
+        }
+
+        public int port() {
+            return port;
+        }
+
+        public String username() {
+            return username;
+        }
+
+        public String authType() {
+            return authType;
+        }
+
+        public String hostFingerprint() {
+            return hostFingerprint;
+        }
+
+        public boolean saveCredentials() {
+            return saveCredentials;
+        }
+
+        public String password() {
+            return password;
+        }
+
+        public String privateKey() {
+            return privateKey;
+        }
+
+        public String passphrase() {
+            return passphrase;
+        }
+    }
 }
